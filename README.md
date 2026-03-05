@@ -12,9 +12,6 @@
 
 <br/>
 <div align="center">
-	<a href="https://github.com/csian98/embedding-comparison">
-		<img src="images/dashboard.png" alt="Logo" width="500" height="500">
-	</a>
 	<h3 align="center">Embedding Comparison</h3>	
 	<br/>
 	<a href="https://github.com/csian98/embedding-comparison">
