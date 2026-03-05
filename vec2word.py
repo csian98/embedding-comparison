@@ -14,13 +14,18 @@ nltk.download("punkt_tab")
 
 from sklearn.cluster import KMeans
 
+from snowflake_util import *
+
 WORD_VEC_SIZE = 32
 SG_WINDOW_SIZE = 5
 CLUSTER_SIZE = 8
 
+def extract_text(df):
+    return df[["TITLE", "SELFTEXT", "TEXT"]]
+
 def read_csv(file_path: str):
     df = pd.read_csv(file_path)
-    return df[["TITLE", "SELFTEXT", "TEXT"]]
+    return extract_text(df)
 
 def make_set(documents: List) -> List:
     return [{word for word in sentence} for sentence in documents]
@@ -56,7 +61,11 @@ def document_embedding(docset: List, encoder: dict):
     return np.array(embedded)
 
 if __name__ == "__main__":
-    df = read_csv("data/sample.csv")
+    #df = read_csv("data/sample.csv")
+    conn = get_connection()
+    df = get_posts(conn)
+    df = extract_text(df)
+    
     documents = []
     
     for i in df.index:
