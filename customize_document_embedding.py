@@ -21,15 +21,17 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, RobustScaler, normalize
 from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.metrics import silhouette_score, davies_bouldin_score
 
 import matplotlib.pyplot as plt
 
 from snowflake_util import *
 
-WORD_VEC_SIZE = 256
+WORD_VEC_SIZE = [64, 128, 256]
+CLUSTER_SIZE = 8
+N_CLUSTERS = 8
 SG_WINDOW_SIZE = 5
 WORD_MIN_COUNT = 1
-CLUSTER_SIZE = 16
 
 STOP_WORDS = set(stopwords.words("english"))
 
@@ -40,7 +42,33 @@ def read_csv(file_path: str):
     df = pd.read_csv(file_path)
     return extract_text(df)
 
-def custom_document_embedding(df):
+def cluster_vectors(vecs: np.ndarray):
+    km = KMeans(n_clusters=N_CLUSTERS, random_state=42, n_init=10)
+    return km.fit_predict(vecs), km
+
+def evaluate(vecs: np.ndarray, labels: np.ndarray) -> dict:
+    sil = silhouette_score(vecs, labels, metric="cosine")
+    db  = davies_bouldin_score(vecs, labels)
+
+    cohesions = []
+    for c in np.unique(labels):
+        idx = np.where(labels == c)[0]
+        if len(idx) < 2:
+            cohesions.append(1.0)
+            continue
+        sub = vecs[idx]
+        sim = np.dot(sub, sub.T)
+        mask = np.triu(np.ones_like(sim, dtype=bool), k=1)
+        cohesions.append(sim[mask].mean())
+
+    return {
+        "silhouette":       round(float(sil), 4),
+        "davies_bouldin":   round(float(db), 4),
+        "avg_intra_cosine": round(float(np.mean(cohesions)), 4),
+        "n_clusters":       int(np.unique(labels).size),
+    }
+
+def custom_document_embedding(df, i):
     def make_set(documents: List) -> List:
         return [{word for word in sentence} for sentence in documents]
     
@@ -53,7 +81,7 @@ def custom_document_embedding(df):
                 model = gensim.models.Word2Vec(
                     documents,
                     min_count=WORD_MIN_COUNT,
-                    vector_size=WORD_VEC_SIZE,
+                    vector_size=WORD_VEC_SIZE[i],
                     window=SG_WINDOW_SIZE,
                     sg=1,
                     workers=1,
@@ -111,15 +139,15 @@ def custom_document_embedding(df):
     bow_norm = normalize(bow_tfidf,  norm="l2")
     return bow_norm
 
-def plot_with_pca(docvec, subreddit):
+def plot_with_pca(docvec, subreddit, i, ax):
     # binvec: (NUM_DATA, CLUSTER_SIZE)
     # subreddit: (NUM_DATA, )
-    #scaler = StandardScaler()
     zscore = np.abs(stats.zscore(docvec))
     mask = (zscore < 3).all(axis=1)
     docvec = docvec[mask]
     subreddit = subreddit[mask]
-    
+
+    # scaler = StandardScaler()
     scaler = RobustScaler()
     docvec = scaler.fit_transform(docvec)
     pca = PCA(n_components=2)
@@ -129,23 +157,34 @@ def plot_with_pca(docvec, subreddit):
 
     for label in labels:
         idx = np.array(subreddit) == label
-        plt.scatter(docvec_t[idx,0],
+        ax.scatter(docvec_t[idx,0],
                     docvec_t[idx,1],
                     label=label,
+                    s=8,
                     alpha=0.6)
 
-    plt.legend(title="Subreddit")
-    plt.xlabel("PC1")
-    plt.ylabel("PC2")
-    plt.show()
+    ax.set_title(f"Dimension = {WORD_VEC_SIZE[i]}")
+    ax.set_xlabel("PC1")
+    ax.set_ylabel("PC2")
+    ax.legend(loc="upper right", title="True Topic")
 
 if __name__ == "__main__":
     #df = read_csv("data/sample.csv")
     conn = get_connection()
     df = get_posts(conn)
     df, subreddit = extract_text(df)
-    
-    docvec = custom_document_embedding(df)
 
-    plot_with_pca(docvec, subreddit)
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    fig.suptitle(
+        "Word2Vec & BoW - PCA 2D Projection", fontweight="bold")
+
+    for i, ax in enumerate(axes):
+        docvec = custom_document_embedding(df, i)
+        plabel, _ = cluster_vectors(docvec)
+        metrics = evaluate(docvec, plabel)
+        print(f"Metrics: {metrics}")
+        
+        plot_with_pca(docvec, subreddit, i, ax)
+
+    plt.show()
     
