@@ -233,7 +233,7 @@ def main():
         plot_clusters(vecs, all_labels[name], true_labels, short, ax)
 
     plt.tight_layout()
-    out_path = "doc2vec_clusters.png"
+    out_path = "./images/doc2vec_clusters.png"
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
     print(f"\nCluster plot saved {out_path}")
 
