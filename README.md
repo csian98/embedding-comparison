@@ -24,8 +24,6 @@
 <a href="https://github.com/csian98/embedding-comparison/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
 </p>
 </div>
-	
-
 
 ## About Project
 
