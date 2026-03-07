@@ -1,3 +1,7 @@
 pandas
 snowflake-connector-python[pandas]
 python-dotenv
+numpy
+gensim
+scikit-learn
+matplotlib
