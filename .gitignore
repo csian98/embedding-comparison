@@ -1,3 +1,4 @@
 .env
+venv/
 scratch.ipynb
 __pycache__/
