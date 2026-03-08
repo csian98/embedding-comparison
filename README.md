@@ -33,6 +33,12 @@ and compared and analyzed the performance of pre-trained Doc2Vec and Document Em
 
 ### Doc2Vec
 
+Perform Documentation Embedding using Doc2Vec for various parameters and compare and analyze the results.
+We compare and analyze the results of Documentation Embedding according to PV-DM (Distributed Memory), 
+PV-DBOW (Distributed Bag of Words), and embedded size.
+
+![doc2vec](images/doc2vec_vlusters.png)
+
 ### Word2Vec + BoW
 
 Word2Vec, announced by Google in 2013, can be used to learn embedded vectors that encapsulate the syntax of words 
