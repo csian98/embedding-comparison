@@ -37,7 +37,7 @@ Perform Documentation Embedding using Doc2Vec for various parameters and compare
 We compare and analyze the results of Documentation Embedding according to PV-DM (Distributed Memory), 
 PV-DBOW (Distributed Bag of Words), and embedded size.
 
-![doc2vec](images/doc2vec_vlusters.png)
+![doc2vec](images/doc2vec_clusters.png)
 
 ### Word2Vec + BoW
 
