@@ -35,7 +35,8 @@ and compared and analyzed the performance of pre-trained Doc2Vec and Document Em
 
 Perform Documentation Embedding using Doc2Vec for various parameters and compare and analyze the results.
 We compare and analyze the results of Documentation Embedding according to PV-DM (Distributed Memory), 
-PV-DBOW (Distributed Bag of Words), and embedded size.
+PV-DBOW (Distributed Bag of Words), and various embedded size.
+The clustering objective is to minimize cosine distance, then we use PCA to project down to 2 dimensions for better visualization.
 
 ![doc2vec](images/doc2vec_clusters.png)
 
