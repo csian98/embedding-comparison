@@ -28,7 +28,7 @@ CONFIGS = {
         vector_size=64,
         min_count=2,
         epochs=20,
-        dm=1,        # PV-DM  — uses word-order context
+        dm=1,
         window=5,
         workers=4,
         seed=42,
@@ -37,13 +37,13 @@ CONFIGS = {
         vector_size=128,
         min_count=3,
         epochs=40,
-        dm=0,        # PV-DBOW — faster; often stronger on short social-media posts
+        dm=0,
         workers=4,
         seed=42,
     ),
     "Config C (dim=256)": dict(
         vector_size=256,
-        min_count=1,  # keep rare / niche vocabulary
+        min_count=1,
         epochs=60,
         dm=1,
         window=8,
@@ -53,11 +53,10 @@ CONFIGS = {
 }
 
 def build_tagged_docs(df: pd.DataFrame) -> list[TaggedDocument]:
-    """Convert each row into a gensim TaggedDocument keyed by its integer index."""
     tagged = []
     for idx, row in df.iterrows():
         text = str(row["SELFTEXT"]) if pd.notna(row["SELFTEXT"]) else ""
-        tokens = simple_preprocess(text, deacc=True)   # lowercase, strips punctuation and numbers
+        tokens = simple_preprocess(text, deacc=True)
         tagged.append(TaggedDocument(words=tokens, tags=[str(idx)]))
     return tagged
 
@@ -67,7 +66,6 @@ def train_doc2vec(tagged_docs: list[TaggedDocument], config: dict) -> Doc2Vec:
     model.train(tagged_docs, total_examples=model.corpus_count, epochs=model.epochs)
     return model
 
-
 def extract_vectors(model: Doc2Vec, tagged_docs: list[TaggedDocument]) -> np.ndarray:
     """Return L2-normalised document vectors.
     After L2 normalisation, Euclidean distance == cosine distance,
@@ -75,17 +73,16 @@ def extract_vectors(model: Doc2Vec, tagged_docs: list[TaggedDocument]) -> np.nda
     vecs = np.array([model.dv[doc.tags[0]] for doc in tagged_docs])
     return normalize(vecs, norm="l2")
 
-N_CLUSTERS = 6
+N_CLUSTERS = 8
 def cluster_vectors(vecs: np.ndarray):
     km = KMeans(n_clusters=N_CLUSTERS, random_state=42, n_init=10)
     return km.fit_predict(vecs), km
 
-
 def evaluate(vecs: np.ndarray, labels: np.ndarray) -> dict:
-    sil = silhouette_score(vecs, labels, metric="cosine") # how similar a data point is to its own cluster  compared to other clusters (higher -> better)
-    db  = davies_bouldin_score(vecs, labels) # the average similarity measure of each cluster with its most similar cluster (lower -> better)
+    sil = silhouette_score(vecs, labels, metric="cosine")   # how similar a data point is to its own cluster  compared to other clusters, higher -> better
+    db  = davies_bouldin_score(vecs, labels)                # the average similarity measure of each cluster with its most similar cluster, lower  -> better
 
-    cohesions = [] # average cosine similarity between all pairs of documents within the same cluster(higher -> better)
+    cohesions = []  # avg cosine similarity within each cluster, higher -> better
     for c in np.unique(labels):
         idx = np.where(labels == c)[0]
         if len(idx) < 2:
@@ -103,31 +100,26 @@ def evaluate(vecs: np.ndarray, labels: np.ndarray) -> dict:
         "n_clusters":       int(np.unique(labels).size),
     }
 
-
-def plot_clusters(vecs: np.ndarray, pred_labels: np.ndarray, true_labels: np.ndarray,
+def plot_clusters(vecs: np.ndarray, labels: np.ndarray,
                   title: str, ax: plt.Axes, sample: int = 2000):
-
     # subsample for large datasets
     if len(vecs) > sample:
         idx = np.random.choice(len(vecs), sample, replace=False)
-        vecs, pred_labels, true_labels = vecs[idx], pred_labels[idx], true_labels[idx]
+        vecs, labels = vecs[idx], labels[idx]
 
-    # PCA to 2D and assign colors for visualization
+    # PCA to 2D for visualization
     proj = PCA(n_components=2, random_state=42).fit_transform(vecs)
-    unique_topics = sorted(set(true_labels))
-    topic_colors = {t: cm.tab10(i / max(len(unique_topics) - 1, 1))
-                    for i, t in enumerate(unique_topics)}
 
-    
-    for topic in unique_topics:
-        mask = true_labels == topic # boolean array 
+    for c in range(N_CLUSTERS):
+        mask = labels == c
         ax.scatter(proj[mask, 0], proj[mask, 1], s=8, alpha=0.6,
-                   color=topic_colors[topic], label=topic)
+                   color=cm.tab10(c / max(N_CLUSTERS - 1, 1)),
+                   label=f"Cluster {c}")
 
     ax.set_title(title, fontsize=10, fontweight="bold")
     ax.set_xlabel("PC 1")
     ax.set_ylabel("PC 2")
-    ax.legend(fontsize=6, markerscale=2, loc="upper right", title="True Topic")
+    ax.legend(fontsize=6, markerscale=2, loc="upper right", title="Cluster")
 
 STOPWORDS = {
     "the","a","an","is","it","in","on","of","to","and","or","for","with",
@@ -141,7 +133,6 @@ STOPWORDS = {
     "some","any","other","them","our","through","before","only","still",
     "where","really","something","should","around","back","again","way",
     "me","no","off","never","am","myself","these"
-
 }
 
 def top_terms_per_cluster(df: pd.DataFrame, labels: np.ndarray, n_terms: int = 15) -> dict:
@@ -154,26 +145,27 @@ def top_terms_per_cluster(df: pd.DataFrame, labels: np.ndarray, n_terms: int = 1
         filtered = [t for t in tokens if t not in STOPWORDS and len(t) > 1]
 
         if not filtered:
-            result[c] = {"_empty_cluster": len(idx)}  # report size even if no terms
+            result[c] = {"_empty_cluster": len(idx)}
         else:
             result[c] = pd.Series(filtered).value_counts().head(n_terms).to_dict()
     return result
 
 def main():
-    
     con = get_connection()
     posts_df = get_posts(con)
     con.close()
 
-    # drop nulls 
+    # drop nulls
     posts_df = posts_df[posts_df["SELFTEXT"].notna()].reset_index(drop=True)
-    
+    posts_df = posts_df[posts_df["SELFTEXT"] != "None"].reset_index(drop=True)
+    posts_df = posts_df[posts_df["SELFTEXT"].str.strip() != ""].reset_index(drop=True)
+    print(f"Total posts after cleaning: {len(posts_df)}")
 
     # Build tagged documents
     print("\nBuilding tagged documents...")
     tagged_docs = build_tagged_docs(posts_df)
 
-    # ── Train → cluster → evaluate ─────────────────────────────────────────
+    # train -> cluster -> evaluate
     all_vectors = {}
     all_labels  = {}
     all_results = {}
@@ -198,7 +190,7 @@ def main():
         all_labels[name]  = labels
         all_results[name] = metrics
 
-    # Summary table 
+    # Summary table
     metrics_df = pd.DataFrame(all_results).T
     print("\n\n" + "="*70)
     print("COMPARATIVE EVALUATION SUMMARY")
@@ -213,8 +205,6 @@ def main():
     for name in CONFIGS:
         print(f"\n--- {name} ---")
         terms = top_terms_per_cluster(posts_df, all_labels[name])
-
-        # print cluster size distribution
         for c in sorted(terms.keys()):
             idx = np.where(all_labels[name] == c)[0]
             top = ", ".join(list(terms[c].keys())[:8])
@@ -226,16 +216,14 @@ def main():
         "Doc2Vec Clustering — PCA 2-D Projection (cosine distance)",
         fontsize=13, fontweight="bold"
     )
-    true_labels = posts_df["TOPIC"].values if "TOPIC" in posts_df.columns else np.zeros(len(posts_df))
 
     for ax, (name, vecs) in zip(axes, all_vectors.items()):
-        short = name.split("—")[0].strip()
-        plot_clusters(vecs, all_labels[name], true_labels, short, ax)
+        plot_clusters(vecs, all_labels[name], name, ax)
 
     plt.tight_layout()
-    out_path = "doc2vec_clusters.png"
+    out_path = "./images/doc2vec_clusters.png"
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
-    print(f"\nCluster plot saved {out_path}")
+    print(f"\nCluster plot saved → {out_path}")
 
     # Best-config recommendation
     # composite = silhouette + avg_intra_cosine − 0.3 × davies_bouldin
@@ -250,7 +238,7 @@ def main():
     best = max(composite, key=composite.get)
 
     print("\n\n" + "="*70)
-    print("  RECOMMENDATION")
+    print("RECOMMENDATION")
     print("="*70)
     print(f"\n  Best configuration : {best}")
     print(f"  Composite scores   : {composite}")
