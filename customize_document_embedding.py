@@ -29,7 +29,7 @@ from snowflake_util import *
 
 WORD_VEC_SIZE = [64, 128, 256]
 CLUSTER_SIZE = 8
-N_CLUSTERS = 8
+N_CLUSTERS = 6
 SG_WINDOW_SIZE = 5
 WORD_MIN_COUNT = 1
 
